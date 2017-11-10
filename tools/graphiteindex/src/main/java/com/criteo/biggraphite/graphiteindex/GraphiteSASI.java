@@ -89,44 +89,55 @@ public class GraphiteSASI
     }
 
     private final ColumnFamilyStore baseCfs;
-    private final IndexMetadata config;
+    private final IndexMetadata metadata;
     private final ColumnDefinition column;
 
-    public GraphiteSASI(ColumnFamilyStore baseCfs, IndexMetadata config)
+    public GraphiteSASI(ColumnFamilyStore baseCfs, IndexMetadata metadata)
     {
         this.baseCfs = baseCfs;
-        this.config = config;
+        this.metadata = metadata;
 
         // FIXME(d.forest): column type is assumed to be text
-        this.column = TargetParser.parse(baseCfs.metadata, config).left;
+        this.column = TargetParser.parse(baseCfs.metadata, metadata).left;
 
         baseCfs.getTracker().subscribe(this);
     }
 
     @Override public IndexMetadata getIndexMetadata()
     {
-        return config;
+        return metadata;
     }
 
     @Override public Callable<?> getInitializationTask()
     {
+        // if we're just linking in the index on an already-built index post-restart or if the base
+        // table is empty we've nothing to do. Otherwise, submit for building via SecondaryIndexBuilder
+        return isBuilt() || baseCfs.isEmpty() ? null : getBuildIndexTask();
+    }
+
+    private boolean isBuilt()
+    {
+        return SystemKeyspace.isIndexBuilt(baseCfs.keyspace.getName(), metadata.name);
+    }
+
+    private Callable<?> getBuildIndexTask()
+    {
         return () -> {
             SortedSet<SSTableReader> toRebuild = new TreeSet<>(
-                (a, b) -> Integer.compare(a.descriptor.generation, b.descriptor.generation)
+                    (a, b) -> Integer.compare(a.descriptor.generation, b.descriptor.generation)
             );
             for (SSTableReader sstable : baseCfs.getTracker().getView().liveSSTables()) {
                 toRebuild.add(sstable);
             }
 
             Future<?> future = CompactionManager.instance.submitIndexBuild(
-                new GraphiteSASIBuilder(baseCfs, column, toRebuild)
+                    new GraphiteSASIBuilder(baseCfs, column, toRebuild)
             );
             FBUtilities.waitOnFuture(future);
-            baseCfs.indexManager.markIndexBuilt(config.name);
+            baseCfs.indexManager.markIndexBuilt(metadata.name);
             return null;
         };
     }
-
     @Override public Callable<?> getMetadataReloadTask(IndexMetadata indexMetadata)
     {
         return null;
