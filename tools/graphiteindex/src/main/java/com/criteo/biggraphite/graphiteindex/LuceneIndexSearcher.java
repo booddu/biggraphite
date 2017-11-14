@@ -3,9 +3,11 @@ package com.criteo.biggraphite.graphiteindex;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.index.sasi.conf.ColumnIndex;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.IntPoint;
@@ -19,6 +21,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -49,12 +52,22 @@ public class LuceneIndexSearcher implements Index.Searcher, Closeable
     {
         this.indexPath = indexPath;
         this.readCommand = readCommand;
-        //this.directory = FSDirectory.open(indexPath);
-        //this.searcherMgr = new SearcherManager(this.directory, new SearcherFactory());
+        this.directory = FSDirectory.open(indexPath);
+        this.searcherMgr = new SearcherManager(this.directory, new SearcherFactory());
     }
 
     @Override
     public UnfilteredPartitionIterator search(ReadExecutionController executionController) {
+        ByteBuffer indexValueBb = readCommand.rowFilter().getExpressions().get(0).getIndexValue();
+        String indexValue = UTF8Type.instance.compose(indexValueBb);
+
+        logger.info("readCommand.rowFilter().getExpressions():"+ readCommand.rowFilter().getExpressions());
+        logger.info("indexValue:"+ indexValue);
+
+        List<Long> offsets = searchOffsets(indexValue);
+        logger.info("offsets:" + offsets);
+
+
         return new UnfilteredPartitionIterator() {
             @Override
             public boolean hasNext() {
@@ -97,17 +110,6 @@ public class LuceneIndexSearcher implements Index.Searcher, Closeable
     public List<Long> searchOffsets(String pattern)
     {
         return search(pattern, LuceneUtils::getOffsetFromDocument);
-    }
-
-    public List<Pair<String, Long>> searchPaths(String pattern)
-    {
-        return search(
-            pattern,
-            doc -> Pair.of(
-                LuceneUtils.getPathFromDocument(doc),
-                LuceneUtils.getOffsetFromDocument(doc)
-            )
-        );
     }
 
     private <T> List<T> search(String pattern, Function<Document, T> handler)
