@@ -81,8 +81,8 @@ public class LuceneIndexSearcher1 implements Index.Searcher, Closeable
                             logger.info("offsets:" + offsets);
                             return Pair.of(ssTable, offsets);})
                         .collect(Collectors.toMap(t -> t.getLeft(), t -> t.getRight()));
-        return EmptyIterators.unfilteredPartition(baseCfs.metadata, false);
-        //return new LuceneResultsIterator(ssTableRowOffsets, readCommand, controller, executionController);
+        //return EmptyIterators.unfilteredPartition(baseCfs.metadata, false);
+        return new LuceneResultsIterator(ssTableRowOffsets, readCommand, controller, executionController);
     }
 
 
@@ -91,7 +91,7 @@ public class LuceneIndexSearcher1 implements Index.Searcher, Closeable
         private final QueryController controller;
         private final ReadExecutionController executionController;
         private final Map<SSTableReader, List<Long>> ssTableRowOffsets;
-        private final List<Long> o = Arrays.asList(293l, 531l, 1128l, 1250l);
+        private final List<Long> o = Arrays.asList(531l, 1128l, 1250l);
         private int index = 0;
 
         public LuceneResultsIterator(Map<SSTableReader, List<Long>> ssTableRowOffsets,
@@ -104,23 +104,29 @@ public class LuceneIndexSearcher1 implements Index.Searcher, Closeable
             this.controller = controller;
         }
 
-
         protected UnfilteredRowIterator computeNext() {
-//            if(index < o.size()) {
-//                logger.info("Start loadingPartitionFor:"+ o.get(index));
-//                SSTableReader ssTableReader = ssTableRowOffsets.keySet().stream().findFirst().get();
-//                Token.TokenFactory tokenFactory = ssTableReader.getPartitioner().getTokenFactory();
-////                UnfilteredRowIterator uri = controller.getPartition(ssTableReader.decorateKey(
-////                        ssTableReader.getPartitioner().getTokenFactory().fromString(String.valueOf(o.get(index++)))),
-////                        executionController);
-//
-//                Token token = tokenFactory.fromString(String.valueOf(o.get(index++)));
-//                DecoratedKey decoratedKey = ssTableReader.getPartitioner().decorateKey(tokenFactory.toByteArray(token));
-//                UnfilteredRowIterator uri = controller.getPartition(decoratedKey,
-//                        executionController);
-//                logger.info("Done loadingPartitionFor:" + uri);
-//                return uri;
-//            }
+            if(index < o.size()) {
+                try {
+                    long offset = o.get(index++);
+                    logger.info("Start loadingPartitionFor:" + offset);
+                    SSTableReader ssTableReader = ssTableRowOffsets.keySet().stream().findFirst().get();
+                    //                Token.TokenFactory tokenFactory = ssTableReader.getPartitioner().getTokenFactory();
+                    //                UnfilteredRowIterator uri = controller.getPartition(ssTableReader.decorateKey(
+                    //                        ssTableReader.getPartitioner().getTokenFactory().fromString(String.valueOf(offset))),
+                    //                        executionController);
+
+                    //                Token token = tokenFactory.fromString(String.valueOf(o.get(index++)));
+                    //                DecoratedKey decoratedKey = ssTableReader.getPartitioner().decorateKey(tokenFactory.toByteArray(token));
+                    DecoratedKey decoratedKey = ssTableReader.keyAt(offset);
+                    UnfilteredRowIterator uri = controller.getPartition(decoratedKey,
+                            executionController);
+                    logger.info("Done loadingPartitionFor:" + uri);
+                    return uri;
+                } catch(IOException e) {
+                    logger.error("Could not get partition:", e);
+                }
+                return null;
+            }
             return null;
         }
 
