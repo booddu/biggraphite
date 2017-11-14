@@ -5,9 +5,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
-import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
-import org.apache.cassandra.db.rows.Unfiltered;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sasi.plan.QueryController;
@@ -120,6 +118,22 @@ public class LuceneIndexSearcher1 implements Index.Searcher, Closeable
                     DecoratedKey decoratedKey = ssTableReader.keyAt(offset);
                     UnfilteredRowIterator uri = controller.getPartition(decoratedKey,
                             executionController);
+
+                    while(uri.hasNext()) {
+                        Unfiltered u = uri.next();
+                        if(u.kind() == Unfiltered.Kind.ROW) {
+                            Row r = (Row)u;
+                            r.cells().forEach(c -> logger.info(
+                                    String.format("Cell: %s;%s",
+                                            c.column(),
+                                            UTF8Type.instance.compose(c.value()))
+                                    )
+                            );
+                        } else {
+                            logger.info("NOT a row");
+                        }
+                    }
+
                     logger.info("Done loadingPartitionFor:" + uri);
                     return uri;
                 } catch(IOException e) {
