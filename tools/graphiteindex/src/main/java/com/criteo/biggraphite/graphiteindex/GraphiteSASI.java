@@ -12,7 +12,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -31,9 +30,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
@@ -248,56 +245,15 @@ public class GraphiteSASI
                 throw new InvalidRequestException("Query does not relate to this index");
             }
 
-            // TODO(d.forest): implement searcher and result iterator
             CFMetaData config = command.metadata();
             ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(config.cfId);
-            return new LuceneIndexSearcher2(cfs, column, command);
+            return new LuceneIndexSearcher(cfs, column, command);
         }
         catch(IOException e) {
             logger.error("Could not build searcherFor:" + command.toString(), e);
         }
         return null;
     }
-
-//    @Override public Searcher searcherFor(ReadCommand command)
-//        throws InvalidRequestException
-//    {
-//        try {
-//            Optional<String> maybePattern = extractGraphitePattern(command.rowFilter());
-//            if (!maybePattern.isPresent()) {
-//                throw new InvalidRequestException("Query does not relate to this index");
-//            }
-//
-////            String indexName = GraphiteSASI.makeIndexName(column, 0 /*FIXME(p.boddu)*/);
-////            Path indexPath = new File("./ssTableDirectory" /*FIXME(p.boddu)*/, indexName).toPath();
-//            /*
-//            this.baseCfs.getTracker().getView().liveSSTables().forEach(s -> s.getIndexFile());
-//
-//            ColumnFamilyStore this.baseCfs
-//            CFS(Keyspace='biggraphite_stress', ColumnFamily='metrics_test')
-//
-//            IndexMetadata this.metadata
-//            org.apache.cassandra.schema.IndexMetadata@6cb1fbcc[id=adf4a31d-d6bb-3cd9-91d1-5414c59e463f,
-//            name=metrics_parent_graphite_idx,kind=CUSTOM,
-//            options={class_name=com.criteo.biggraphite.graphiteindex.GraphiteSASI, target=parent}]
-//
-//            ReadCommand command
-//            Read(biggraphite_stress.metrics_test columns=* rowfilter=parent LIKE '<term>' local.random. limits=LIMIT 100
-//            range=(min(-9223372036854775808), min(-9223372036854775808)] pfilter=names(EMPTY))
-//            */
-//
-//            String indexName = GraphiteSASI.makeIndexName(column, 1 /*FIXME(p.boddu)*/);
-//            File parent = baseCfs.getLiveSSTables().stream().findFirst().get().descriptor.directory;
-//            Path indexPath = new File(parent /*FIXME(p.boddu)*/, indexName).toPath();
-//
-//            // TODO(d.forest): implement searcher and result iterator
-//            return new LuceneIndexSearcher(indexPath, command);
-//        }
-//        catch(IOException e) {
-//            logger.error("Could not build searcherFor:" + command.toString(), e);
-//        }
-//        return null;
-//    }
 
     @Override public void handleNotification(INotification notification, Object sender)
     {
