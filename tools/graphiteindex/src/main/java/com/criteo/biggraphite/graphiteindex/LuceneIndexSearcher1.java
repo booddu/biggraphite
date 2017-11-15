@@ -108,13 +108,6 @@ public class LuceneIndexSearcher1 implements Index.Searcher, Closeable
                     long offset = o.get(index++);
                     logger.info("Start loadingPartitionFor:" + offset);
                     SSTableReader ssTableReader = ssTableRowOffsets.keySet().stream().findFirst().get();
-                    //                Token.TokenFactory tokenFactory = ssTableReader.getPartitioner().getTokenFactory();
-                    //                UnfilteredRowIterator uri = controller.getPartition(ssTableReader.decorateKey(
-                    //                        ssTableReader.getPartitioner().getTokenFactory().fromString(String.valueOf(offset))),
-                    //                        executionController);
-
-                    //                Token token = tokenFactory.fromString(String.valueOf(o.get(index++)));
-                    //                DecoratedKey decoratedKey = ssTableReader.getPartitioner().decorateKey(tokenFactory.toByteArray(token));
                     DecoratedKey decoratedKey = ssTableReader.keyAt(offset);
                     UnfilteredRowIterator uri = controller.getPartition(decoratedKey,
                             executionController);
@@ -155,32 +148,6 @@ public class LuceneIndexSearcher1 implements Index.Searcher, Closeable
         public CFMetaData metadata()
         {
             return readCommand.metadata();
-        }
-
-
-
-        private static class LucenePartitionIterator extends AbstractUnfilteredRowIterator
-        {
-            private final Iterator<Unfiltered> rows;
-
-            public LucenePartitionIterator(UnfilteredRowIterator partition, Collection<Unfiltered> content)
-            {
-                super(partition.metadata(),
-                        partition.partitionKey(),
-                        partition.partitionLevelDeletion(),
-                        partition.columns(),
-                        partition.staticRow(),
-                        partition.isReverseOrder(),
-                        partition.stats());
-
-                rows = content.iterator();
-            }
-
-            @Override
-            protected Unfiltered computeNext()
-            {
-                return rows.hasNext() ? rows.next() : endOfData();
-            }
         }
     }
 

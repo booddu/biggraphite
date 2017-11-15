@@ -251,7 +251,7 @@ public class GraphiteSASI
             // TODO(d.forest): implement searcher and result iterator
             CFMetaData config = command.metadata();
             ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(config.cfId);
-            return new LuceneIndexSearcher1(cfs, column, command);
+            return new LuceneIndexSearcher2(cfs, column, command);
         }
         catch(IOException e) {
             logger.error("Could not build searcherFor:" + command.toString(), e);
