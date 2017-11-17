@@ -46,7 +46,6 @@ public class LuceneIndexSearcher implements Index.Searcher, Closeable
     private final ColumnFamilyStore baseCfs;
     private final ReadCommand readCommand;
     private final ColumnDefinition column;
-    private final QueryController queryController;
 
     public LuceneIndexSearcher(ColumnFamilyStore baseCfs, ColumnDefinition column, ReadCommand readCommand)
         throws IOException
@@ -54,9 +53,6 @@ public class LuceneIndexSearcher implements Index.Searcher, Closeable
         this.baseCfs = baseCfs;
         this.readCommand = readCommand;
         this.column = column;
-        this.queryController = new QueryController(baseCfs,
-                (PartitionRangeReadCommand) readCommand,
-                DatabaseDescriptor.getRangeRpcTimeout());
     }
 
     /**
@@ -99,14 +95,12 @@ public class LuceneIndexSearcher implements Index.Searcher, Closeable
                                 .map(offset -> Pair.of(es.getKey(), offset))
                         ).collect(Collectors.toList());
 
-        return new LuceneResultsIterator(searchResults, readCommand, queryController, executionController);
+        return new LuceneResultsIterator(searchResults, readCommand);
     }
 
 
     private static class LuceneResultsIterator implements UnfilteredPartitionIterator {
         private final ReadCommand readCommand;
-        private final QueryController queryController;
-        private final ReadExecutionController executionController;
         private final List<Pair<SSTableReader, Long>> searchResults;
         private final Iterator<Pair<SSTableReader, Long>> searchResultsIterator;
 
@@ -114,19 +108,12 @@ public class LuceneIndexSearcher implements Index.Searcher, Closeable
          *
          * @param searchResults list of pair of SSTableReader and search result indexPosition in the SSTable.
          * @param readCommand associated read command.
-         * @param queryController an utility method is used for fetching the Partition from the column family (table).
-         *                        TODO(p.boddu): Look into fetching the partition directly from SSTableReader.
-         * @param executionController
          */
         public LuceneResultsIterator(List<Pair<SSTableReader, Long>> searchResults,
-                                     ReadCommand readCommand,
-                                     QueryController queryController,
-                                     ReadExecutionController executionController) {
+                                     ReadCommand readCommand) {
             this.searchResults = searchResults;
             this.searchResultsIterator = searchResults.iterator();
             this.readCommand = readCommand;
-            this.executionController = executionController;
-            this.queryController = queryController;
         }
 
         public boolean hasNext() {
