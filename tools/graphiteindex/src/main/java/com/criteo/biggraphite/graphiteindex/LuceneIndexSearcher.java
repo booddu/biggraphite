@@ -148,7 +148,8 @@ public class LuceneIndexSearcher implements Index.Searcher, Closeable
                         readCommand.isForThrift(),
                         readCommand.nowInSec(),
                         false,
-                        new SSTableReadMetricsCollector()); // TODO(p.boddu) Handle metrics reporting
+                        SSTableReadsListener.NOOP_LISTENER);
+                ssTableReader.incrementReadCount();
                 return uri;
             } catch(IOException e) {
                 logger.error("Exception while fetching partition", e);
@@ -167,33 +168,6 @@ public class LuceneIndexSearcher implements Index.Searcher, Closeable
         }
     }
 
-    /**
-     * {@code SSTableReaderListener} used to collect metrics about SSTable read access.
-     */
-    private static final class SSTableReadMetricsCollector implements SSTableReadsListener
-    {
-        /**
-         * The number of SSTables that need to be merged. This counter is only updated for single partition queries
-         * since this has been the behavior so far.
-         */
-        private int mergedSSTables;
-
-        @Override
-        public void onSSTableSelected(SSTableReader sstable, RowIndexEntry<?> indexEntry, SelectionReason reason)
-        {
-            sstable.incrementReadCount();
-            mergedSSTables++;
-        }
-
-        /**
-         * Returns the number of SSTables that need to be merged.
-         * @return the number of SSTables that need to be merged.
-         */
-        public int getMergedSSTables()
-        {
-            return mergedSSTables;
-        }
-    }
     @Override
     public void close() throws IOException {}
 
