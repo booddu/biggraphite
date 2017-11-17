@@ -7,9 +7,11 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.UnfilteredRowIteratorWithLowerBound;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sasi.plan.QueryController;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.IntPoint;
@@ -137,7 +139,16 @@ public class LuceneIndexSearcher implements Index.Searcher, Closeable
                 long indexPosition = searchResult.getRight();
                 DecoratedKey decoratedKey = ssTableReader.keyAt(indexPosition);
                 logger.debug("Fetching partition at indexPosition:{} from SSTable:{}", indexPosition, ssTableReader.getFilename());
-                UnfilteredRowIterator uri = queryController.getPartition(decoratedKey, executionController);
+                //UnfilteredRowIterator uri = queryController.getPartition(decoratedKey, executionController);
+
+                UnfilteredRowIterator uri = new UnfilteredRowIteratorWithLowerBound(decoratedKey,
+                        ssTableReader,
+                        readCommand.clusteringIndexFilter(decoratedKey),
+                        readCommand.columnFilter(),
+                        readCommand.isForThrift(),
+                        readCommand.nowInSec(),
+                        false,
+                        new SSTableReadMetricsCollector()); // TODO(p.boddu) Handle metrics reporting
                 return uri;
             } catch(IOException e) {
                 logger.error("Exception while fetching partition", e);
@@ -156,6 +167,33 @@ public class LuceneIndexSearcher implements Index.Searcher, Closeable
         }
     }
 
+    /**
+     * {@code SSTableReaderListener} used to collect metrics about SSTable read access.
+     */
+    private static final class SSTableReadMetricsCollector implements SSTableReadsListener
+    {
+        /**
+         * The number of SSTables that need to be merged. This counter is only updated for single partition queries
+         * since this has been the behavior so far.
+         */
+        private int mergedSSTables;
+
+        @Override
+        public void onSSTableSelected(SSTableReader sstable, RowIndexEntry<?> indexEntry, SelectionReason reason)
+        {
+            sstable.incrementReadCount();
+            mergedSSTables++;
+        }
+
+        /**
+         * Returns the number of SSTables that need to be merged.
+         * @return the number of SSTables that need to be merged.
+         */
+        public int getMergedSSTables()
+        {
+            return mergedSSTables;
+        }
+    }
     @Override
     public void close() throws IOException {}
 
